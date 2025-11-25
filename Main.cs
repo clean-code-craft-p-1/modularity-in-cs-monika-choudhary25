@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
-using System.Linq;
 
 namespace TemperatureAnalysis
 {
@@ -12,130 +9,33 @@ namespace TemperatureAnalysis
         {
             try
             {
-                if (!File.Exists(filename))
-                {
-                    Console.WriteLine("Error: File not found.");
-                    return;
-                }
+                var fileReader = new FileReader();
+                var validator = new DataValidator();
+                var statsCalculator = new StatisticsCalculator();
+                var reportGenerator = new ReportGenerator();
 
-                string[] lines = File.ReadAllLines(filename);
+                // Read file
+                string[] lines = fileReader.ReadLines(filename);
 
-                var temps = new List<double>();
-                var timestamps = new List<string>();
-                int errors = 0;
-                var badLines = new List<(int index, string line)>();
+                // Validate data
+                var validationResult = validator.ValidateData(lines);
 
-                for (int i = 0; i < lines.Length; i++)
-                {
-                    string line = lines[i].Trim();
-                    if (string.IsNullOrEmpty(line))
-                        continue;
-
-                    string[] parts = line.Split(',');
-                    if (parts.Length != 2)
-                    {
-                        errors++;
-                        badLines.Add((i, line));
-                        continue;
-                    }
-
-                    string timestamp = parts[0].Trim();
-                    string valueStr = parts[1].Trim();
-
-                    // Validate timestamp (expecting HH:MM:SS format)
-                    if (timestamp.Split(':').Length != 3)
-                    {
-                        errors++;
-                        badLines.Add((i, line));
-                        continue;
-                    }
-
-                    // Try to parse temperature value
-                    if (!double.TryParse(valueStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double temp))
-                    {
-                        errors++;
-                        badLines.Add((i, line));
-                        continue;
-                    }
-
-                    // Drop impossible temperatures
-                    if (temp < -100 || temp > 200)
-                    {
-                        errors++;
-                        badLines.Add((i, line));
-                        continue;
-                    }
-
-                    temps.Add(temp);
-                    timestamps.Add(timestamp);
-                }
-
-                if (temps.Count == 0)
+                if (validationResult.ValidReadings.Count == 0)
                 {
                     Console.WriteLine("No valid temperature data found.");
                     return;
                 }
 
                 // Calculate statistics
-                double maxTemp = temps.Max();
-                double minTemp = temps.Min();
-                double avgTemp = temps.Average();
+                var statistics = statsCalculator.Calculate(validationResult.ValidReadings);
 
-                // Print summary
-                Console.WriteLine(new string('=', 60));
-                Console.WriteLine("Temperature Analysis Summary");
-                Console.WriteLine(new string('=', 60));
-                Console.WriteLine($"Total readings: {lines.Length}");
-                Console.WriteLine($"Valid readings: {temps.Count}");
-                Console.WriteLine($"Errors: {errors}");
-                Console.WriteLine(new string('-', 60));
-                Console.WriteLine($"Max temperature: {maxTemp:F2}");
-                Console.WriteLine($"Min temperature: {minTemp:F2}");
-                Console.WriteLine($"Average temperature: {avgTemp:F2}");
-                Console.WriteLine(new string('-', 60));
-
-                // Print invalid lines (verbose)
-                if (errors > 0)
-                {
-                    Console.WriteLine("Invalid lines:");
-                    foreach (var (idx, bad) in badLines)
-                    {
-                        Console.WriteLine($"  Line {idx + 1}: {bad}");
-                    }
-                }
-
-                // Save report
-                string outName = filename + "_summary.txt";
-                try
-                {
-                    using (var writer = new StreamWriter(outName))
-                    {
-                        writer.WriteLine("Temperature Analysis Summary");
-                        writer.WriteLine(new string('=', 50));
-                        writer.WriteLine($"File analyzed: {filename}");
-                        writer.WriteLine($"Total readings: {lines.Length}");
-                        writer.WriteLine($"Valid readings: {temps.Count}");
-                        writer.WriteLine($"Errors: {errors}");
-                        writer.WriteLine($"Max temperature: {maxTemp:F2}");
-                        writer.WriteLine($"Min temperature: {minTemp:F2}");
-                        writer.WriteLine($"Average temperature: {avgTemp:F2}");
-                        writer.WriteLine(new string('-', 60));
-                        
-                        if (errors > 0)
-                        {
-                            writer.WriteLine("\nInvalid lines:");
-                            foreach (var (idx, bad) in badLines)
-                            {
-                                writer.WriteLine($"  Line {idx + 1}: {bad}");
-                            }
-                        }
-                    }
-                    Console.WriteLine($"Report saved to {outName}");
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"Error saving file: {e.Message}");
-                }
+                // Generate reports
+                reportGenerator.PrintSummary(validationResult, statistics);
+                reportGenerator.SaveReport(filename, validationResult, statistics);
+            }
+            catch (FileNotFoundException)
+            {
+                Console.WriteLine("Error: File not found.");
             }
             catch (Exception e)
             {
