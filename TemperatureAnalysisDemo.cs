@@ -3,7 +3,7 @@ using System.IO;
 
 namespace TemperatureAnalysis
 {
-    class Program
+    class TemperatureAnalysisDemo
     {
         static void ProcessBatch(string filename)
         {
